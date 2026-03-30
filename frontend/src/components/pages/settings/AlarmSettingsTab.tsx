@@ -1,23 +1,32 @@
-import { Box, Button, FormControlLabel, Slider, Switch, Typography } from '@mui/material';
-import { useEffect, useState } from 'react';
+import { Box, Button, CircularProgress, FormControlLabel, Slider, Switch, Typography } from '@mui/material';
+import { useEffect, useRef, useState } from 'react';
 import NumberField from '../../ui/NumberField';
 import { PRAYER_NAMES, type Settings } from '../../../types';
 import { useTranslation } from 'react-i18next';
+import { Dialogs } from '@wailsio/runtime';
 import {
   checkNativeNotificationPermission,
+  getAdhanAudioFormat,
   playAdhan,
   requestNativeNotificationPermission,
   stopAdhan,
+  validateAdhanFile,
 } from '../../../bindings';
 interface AlarmSettingsTabProps {
   local: Settings;
   setNotification: (patch: Partial<Settings['notification']>) => void;
 }
 
+type FileStatus = { state: 'idle' | 'validating' | 'ok' | 'error'; message?: string };
+
 export default function AlarmSettingsTab({ local, setNotification }: AlarmSettingsTabProps) {
   const { t } = useTranslation();
   const [nativePermission, setNativePermission] = useState<boolean | null>(null);
   const [nativePermissionError, setNativePermissionError] = useState<string | null>(null);
+  const [audioFormat, setAudioFormat] = useState<{ sampleRate: number; channels: number } | null>(null);
+  const [adhanFileStatus, setAdhanFileStatus] = useState<FileStatus>({ state: 'idle' });
+  const [adhanFajrFileStatus, setAdhanFajrFileStatus] = useState<FileStatus>({ state: 'idle' });
+  const formatFetchedRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -35,6 +44,39 @@ export default function AlarmSettingsTab({ local, setNotification }: AlarmSettin
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (formatFetchedRef.current) return;
+    formatFetchedRef.current = true;
+    void getAdhanAudioFormat()
+      .then((fmt) => setAudioFormat(fmt))
+      .catch(() => {/* non-critical */ });
+  }, []);
+  const pickAdhanFile = async (isFajr: boolean) => {
+    const path = await Dialogs.OpenFile({
+      Title: isFajr ? t('settings.alarms.adhanFajrFileLabel') : t('settings.alarms.adhanFileLabel'),
+      Filters: [{ DisplayName: 'WAV Audio', Pattern: '*.wav' }],
+    });
+    if (!path) return;
+    const setStatus = isFajr ? setAdhanFajrFileStatus : setAdhanFileStatus;
+    setStatus({ state: 'validating' });
+    try {
+      await validateAdhanFile(path);
+      setStatus({ state: 'ok' });
+      setNotification(isFajr ? { adhanFajrFile: path } : { adhanFile: path });
+    } catch (e) {
+      setStatus({ state: 'error', message: String(e) });
+    }
+  };
+  const resetAdhanFile = (isFajr: boolean) => {
+    if (isFajr) {
+      setAdhanFajrFileStatus({ state: 'idle' });
+      setNotification({ adhanFajrFile: '' });
+    } else {
+      setAdhanFileStatus({ state: 'idle' });
+      setNotification({ adhanFile: '' });
+    }
+  };
 
   const playPreview = async (isFajr: boolean) => {
     try {
@@ -124,6 +166,75 @@ export default function AlarmSettingsTab({ local, setNotification }: AlarmSettin
           value={local.notification.adhanVolume}
           onChange={(_, value) => setNotification({ adhanVolume: value as number })}
         />
+      </Box>
+
+      <Box pb={3} borderBottom="1px solid" borderColor="divider" display="flex" flexDirection="column" gap={2}>
+        <Box>
+          <Typography variant="subtitle1">{t('settings.alarms.adhanAudioFiles')}</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {t('settings.alarms.adhanAudioFilesDesc')}
+          </Typography>
+          {audioFormat && (
+            <Typography variant="caption" color="text.disabled" display="block" mt={0.5}>
+              {t('settings.alarms.adhanFileFormatHint', audioFormat)}
+              {' · '}
+              <code>{t('settings.alarms.adhanFileFormatCmd', audioFormat)}</code>
+            </Typography>
+          )}
+        </Box>
+        {([false, true] as const).map((isFajr) => {
+          const label = isFajr ? t('settings.alarms.adhanFajrFileLabel') : t('settings.alarms.adhanFileLabel');
+          const currentPath = isFajr ? local.notification.adhanFajrFile : local.notification.adhanFile;
+          const status = isFajr ? adhanFajrFileStatus : adhanFileStatus;
+          return (
+            <Box key={String(isFajr)} display="flex" flexDirection={{ xs: 'column', sm: 'row' }} gap={1} alignItems={{ sm: 'center' }}>
+              <Typography variant="body2" color="text.secondary" sx={{ minWidth: 120 }}>
+                {label}
+              </Typography>
+              <Box
+                flex={1}
+                px={1.5}
+                py={0.75}
+                bgcolor="action.hover"
+                borderRadius={0.5}
+                sx={{ fontFamily: 'monospace', fontSize: '0.75rem', wordBreak: 'break-all', color: currentPath ? 'text.primary' : 'text.disabled' }}
+              >
+                {currentPath || t('settings.alarms.adhanFilePlaceholder')}
+              </Box>
+              {status.state === 'validating' && <CircularProgress size={18} sx={{ flexShrink: 0 }} />}
+              {status.state === 'ok' && (
+                <Typography variant="caption" color="success.main" sx={{ flexShrink: 0 }}>
+                  {t('settings.alarms.adhanFileValid')}
+                </Typography>
+              )}
+              {status.state === 'error' && (
+                <Typography variant="caption" color="error.main" sx={{ flexShrink: 0, maxWidth: 220 }}>
+                  {t('settings.alarms.adhanFileError', { message: status.message })}
+                </Typography>
+              )}
+              <Button
+                variant="outlined"
+                size="small"
+                sx={{ flexShrink: 0 }}
+                disabled={status.state === 'validating'}
+                onClick={() => void pickAdhanFile(isFajr)}
+              >
+                {t('settings.alarms.adhanFileBrowse')}
+              </Button>
+              {currentPath && (
+                <Button
+                  variant="text"
+                  size="small"
+                  color="error"
+                  sx={{ flexShrink: 0 }}
+                  onClick={() => resetAdhanFile(isFajr)}
+                >
+                  {t('settings.alarms.adhanFileReset')}
+                </Button>
+              )}
+            </Box>
+          );
+        })}
       </Box>
 
       <Box display={'grid'} gridTemplateColumns={{ xs: '1fr', md: '1fr 1fr' }} gap={3}>

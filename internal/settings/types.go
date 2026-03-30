@@ -38,6 +38,8 @@ type NotificationSettings struct {
 	Style                    NotificationStyle     `json:"style"`
 	PlayAdhan                bool                  `json:"playAdhan"`
 	AdhanVolume              float64               `json:"adhanVolume"` // 0.0 to 1.0
+	AdhanFile                string                `json:"adhanFile"`      // path to custom adhan WAV; empty = use built-in
+	AdhanFajrFile            string                `json:"adhanFajrFile"`  // path to custom fajr adhan WAV; empty = use built-in
 	PersistentReminder       bool                  `json:"persistentReminder"`
 	AutoDismissSeconds       int                   `json:"autoDismissSeconds"`
 	AutoDismissAfterAdhan    bool                  `json:"autoDismissAfterAdhan"`

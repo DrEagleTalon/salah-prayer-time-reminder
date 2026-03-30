@@ -149,6 +149,10 @@ export const getTestReminderState = (): Promise<ReminderInfo | null> =>
 export const playAdhan = (isFajr: boolean): Promise<void> =>
   AppService.PlayAdhan(isFajr) as any;
 export const stopAdhan = (): Promise<void> => AppService.StopAdhan() as any;
+export const validateAdhanFile = (path: string): Promise<void> =>
+  AppService.ValidateAdhanFile(path) as any;
+export const getAdhanAudioFormat = (): Promise<{ sampleRate: number; channels: number }> =>
+  AppService.GetAdhanAudioFormat() as any;
 export const resizeReminderWindow = (state: string, isTest: boolean): Promise<void> =>
   AppService.ResizeReminderWindow(state, isTest) as any;
 

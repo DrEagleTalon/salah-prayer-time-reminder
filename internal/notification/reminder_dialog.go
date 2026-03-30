@@ -49,7 +49,11 @@ func (svc *Service) playAdhanForDialog(info ReminderInfo, notif *ReminderNotific
 		return
 	}
 	isFajr := strings.EqualFold(info.PrayerName, "Fajr")
-	if err := svc.audioSvc.Play(isFajr, notif.AdhanVolume); err != nil {
+	customPath := notif.AdhanFile
+	if isFajr {
+		customPath = notif.AdhanFajrFile
+	}
+	if err := svc.audioSvc.Play(customPath, isFajr, notif.AdhanVolume); err != nil {
 		log.Error("dialog adhan play failed", "error", err, "fajr", isFajr)
 	}
 }

@@ -79,15 +79,17 @@ func scheduleToMap(s prayer.DaySchedule) map[string]string {
 
 func toReminderNotificationSettings(cfg settings.NotificationSettings) *notification.ReminderNotificationSettings {
 	return &notification.ReminderNotificationSettings{
-		PersistentReminder:   cfg.PersistentReminder,
-		AutoDismissSeconds:   cfg.AutoDismissSeconds,
-		AutoDismissAfterAdhan: cfg.AutoDismissAfterAdhan,
-		PlayAdhan:            cfg.PlayAdhan,
-		AdhanVolume:          cfg.AdhanVolume,
-		AlwaysOnTop:          cfg.AlwaysOnTop,
-		UseNativeNotification: cfg.UseNativeNotification,
+		PersistentReminder:       cfg.PersistentReminder,
+		AutoDismissSeconds:       cfg.AutoDismissSeconds,
+		AutoDismissAfterAdhan:    cfg.AutoDismissAfterAdhan,
+		PlayAdhan:                cfg.PlayAdhan,
+		AdhanVolume:              cfg.AdhanVolume,
+		AdhanFile:                cfg.AdhanFile,
+		AdhanFajrFile:            cfg.AdhanFajrFile,
+		AlwaysOnTop:              cfg.AlwaysOnTop,
+		UseNativeNotification:    cfg.UseNativeNotification,
 		NativeNotificationSticky: cfg.NativeNotificationSticky,
-		UseNativeDialog:      cfg.UseNativeDialog,
+		UseNativeDialog:          cfg.UseNativeDialog,
 	}
 }
 

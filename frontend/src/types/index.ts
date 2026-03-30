@@ -121,6 +121,8 @@ export interface NotificationSettings {
   style: NotificationStyle;
   playAdhan: boolean;
   adhanVolume: number;
+  adhanFile: string;
+  adhanFajrFile: string;
   persistentReminder: boolean;
   autoDismissSeconds: number;
   autoDismissAfterAdhan: boolean;

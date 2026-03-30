@@ -760,11 +760,30 @@ func (s *Service) PlayAdhan(isFajr bool) error {
 		return nil
 	}
 	cfg := s.settingsSvc.Get()
-	if err := s.audioSvc.Play(isFajr, cfg.Notification.AdhanVolume); err != nil {
+	customPath := cfg.Notification.AdhanFile
+	if isFajr {
+		customPath = cfg.Notification.AdhanFajrFile
+	}
+	if err := s.audioSvc.Play(customPath, isFajr, cfg.Notification.AdhanVolume); err != nil {
 		log.Error("play adhan failed", "error", err, "fajr", isFajr)
 		return err
 	}
 	return nil
+}
+
+// ValidateAdhanFile checks whether the WAV at path is compatible with the audio context.
+func (s *Service) ValidateAdhanFile(path string) error {
+	if s.audioSvc == nil {
+		return fmt.Errorf("audio service unavailable")
+	}
+	return s.audioSvc.ValidateAdhanFile(path)
+}
+// GetAdhanAudioFormat returns the WAV format (sample rate, channels) required by the audio context.
+func (s *Service) GetAdhanAudioFormat() audio.AudioFormatInfo {
+	if s.audioSvc == nil {
+		return audio.AudioFormatInfo{}
+	}
+	return s.audioSvc.GetAudioFormat()
 }
 
 func (s *Service) StopAdhan() {

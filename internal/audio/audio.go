@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/ebitengine/oto/v3"
 	"github.com/youpy/go-wav"
@@ -62,8 +63,9 @@ func (svc *Service) waitReady() bool {
 }
 
 // Play plays the adhan audio. Pass isFajr=true to play the Fajr adhan.
+// customPath is the path to a custom WAV file; if empty the built-in audio is used.
 // volume is in range 0.0 to 1.0.
-func (svc *Service) Play(isFajr bool, volume float64) error {
+func (svc *Service) Play(customPath string, isFajr bool, volume float64) error {
 	if !svc.waitReady() {
 		if svc.initErr != nil {
 			return fmt.Errorf("audio context failed: %w", svc.initErr)
@@ -77,9 +79,9 @@ func (svc *Service) Play(isFajr bool, volume float64) error {
 	// Stop any existing playback
 	svc.stopLocked()
 
-	data := adhanNormalData
-	if isFajr {
-		data = adhanFajrData
+	data, err := svc.loadAudioData(customPath, isFajr)
+	if err != nil {
+		return err
 	}
 
 	pcm, sampleRate, channels, err := parseWav(data)
@@ -97,8 +99,62 @@ func (svc *Service) Play(isFajr bool, volume float64) error {
 	player.SetVolume(clamp(volume, 0, 1))
 	player.Play()
 	svc.player = player
-	log.Info("adhan play", "fajr", isFajr, "volume", volume)
+	log.Info("adhan play", "fajr", isFajr, "customPath", customPath, "volume", volume)
 	return nil
+}
+
+// loadAudioData returns the WAV bytes for the given adhan type.
+// If customPath is non-empty it reads from disk; on failure it falls back to the built-in audio.
+func (svc *Service) loadAudioData(customPath string, isFajr bool) ([]byte, error) {
+	if customPath != "" {
+		data, err := os.ReadFile(customPath)
+		if err != nil {
+			log.Warn("custom adhan file unreadable, falling back to built-in", "path", customPath, "error", err)
+		} else {
+			return data, nil
+		}
+	}
+	if isFajr {
+		return adhanFajrData, nil
+	}
+	return adhanNormalData, nil
+}
+
+// ValidateAdhanFile checks that the WAV file at path is compatible with the audio context.
+// It returns a descriptive error (including an FFMPEG conversion hint) if the file is invalid.
+func (svc *Service) ValidateAdhanFile(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("cannot read file: %w", err)
+	}
+	_, fileSampleRate, fileChannels, err := parseWav(data)
+	if err != nil {
+		return fmt.Errorf("invalid WAV file: %w", err)
+	}
+
+	// Determine required format from the built-in reference file.
+	_, refSampleRate, refChannels, err := parseWav(adhanNormalData)
+	if err != nil {
+		// Should never happen with a valid embedded file.
+		return nil
+	}
+	
+	if fileSampleRate != refSampleRate || fileChannels != refChannels {
+		return fmt.Errorf(
+			"incompatible format: file is %d Hz / %d ch, but app requires %d Hz / %d ch — "+
+				"convert with: ffmpeg -i \"%s\" -ar %d -ac %d -acodec pcm_s16le output.wav",
+			fileSampleRate, fileChannels, refSampleRate, refChannels,
+			path, refSampleRate, refChannels,
+		)
+	}
+	return nil
+}
+
+// GetAudioFormat returns the sample rate and channel count required by the audio context,
+// derived from the built-in adhan file.
+func (svc *Service) GetAudioFormat() AudioFormatInfo {
+	_, sampleRate, channels, _ := parseWav(adhanNormalData)
+	return AudioFormatInfo{SampleRate: sampleRate, Channels: channels}
 }
 
 func parseWav(data []byte) (pcm []byte, sampleRate int, channels int, err error) {
